@@ -38,6 +38,13 @@ http.createServer(function (req, res) {
     res.write(util.format(svgTemplate, mosaic.TILE_WIDTH, mosaic.TILE_HEIGHT, m[1]));
     res.end();
     return;
+  } else if (req.url === '/css/style.css') {
+    fs.readFile('css/style.css', function(err, page) {
+     res.writeHead(200, {'Content-Type': 'text/css'});
+     res.write(page);
+     res.end();
+    });
+    return;
   }
   res.writeHead(404, {'Content-Type': 'text/plain'});
   res.write('404 Not Found\n');

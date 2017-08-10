@@ -1,3 +1,17 @@
+# Mosaic
+Turn an image into a Mosaic. Based on vanilla JS, HTML and CSS
+
+## Setup
+In your command prompt, go to your local repository. Then type in:
+`git clone https://github.com/smoroso/Mosaic`
+
+## Use
+`npm start`
+
+Open your browser and go to:
+`http://localhost:8765`
+
+# Initial instructions
 Photo mosaic
 ------------
 
