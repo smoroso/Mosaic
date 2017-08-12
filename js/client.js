@@ -1,191 +1,369 @@
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
-(function(window, document){//To avoid polluting the global space
-	const maxFileSize = 256000; //Arbitrary setting to 250kB
+(() => {
+  const flipImageEl = document.getElementById("flip-image");
+  const imageMosaicEl = document.getElementById("image-mosaic");
+  const imageMosaicContainer = document.getElementById("image-mosaic-container");
+  const imagePreviewContainer = document.getElementById("image-preview-container");
+  const imagesContainer = document.getElementById("images-container");
+  const loadingSpinnerContainer = document.getElementById("loading-spinner-container");
+  const turnToMosaicButtonEl = document.getElementById("turn-mosaic-button");
 
-	let _flipImageElement,
-	_imageInputElement,
-	_imageMosaicElement,
-	_imageMosaicElementContainer,
-	_imagePreviewElement,
-	_imagePreviewElementContainer,
-	_imagesContainerElement,
-	_loadingSpinnerElement,
-	_loadingSpinnerElementContainer,
-	_turnToMosaicButtonElement;
+  const clear = () => {
+    flipImageEl.style["display"] = "none";
+    imageMosaicEl.innerHTML = "";
+    imageMosaicContainer.style["display"] = "none";
+    imagePreviewContainer.style["display"] = "none";
+    imagesContainer.style["display"] = "none";
+    loadingSpinnerContainer.style["display"] = "none";
+    turnToMosaicButtonEl.disabled = true;
+  };
 
-	let solutionWorker;
+  module.exports = clear;
+})();
 
-	let _image;
-	let _imageWidth, _imageHeight;
-	let numCols, numRows;
+},{}],2:[function(require,module,exports){
+"use strict";
 
-	//Checking whether browser fully supports all File API
-	if (window.File && window.FileReader && window.FileList) {
-		initialisation();
+(() => {
+	const fetchColors = async (imagePiecesAverageColor) => {
+		let promises = imagePiecesAverageColor.map((pieceAvgColor) => {
+			return memoizedFetchColor(pieceAvgColor);
+		});
+		return Promise.all(promises);
+	}
 
-		function initialisation(){
-			//Getting all the DOM useful elements:
-			_flipImageElement = document.getElementById("flip-image");
-			_imageInputElement = document.getElementById("image-input");
-			_imageMosaicElement = document.getElementById("image-mosaic");
-			_imageMosaicElementContainer = document.getElementById("image-mosaic-container");
-			_imagePreviewElement = document.getElementById("image-preview");
-			_imagePreviewElementContainer = document.getElementById("image-preview-container");
-			_imagesContainerElement = document.getElementById("images-container");
-			_loadingSpinnerElement = document.getElementById("loading-spinner");
-			_loadingSpinnerElementContainer = document.getElementById("loading-spinner-container");
-			_turnToMosaicButtonElement = document.getElementById("turn-mosaic-button");
-
-			numCols = numRows = 0;
-
-			if(window.Worker){
-				//If the browser supports it, we use a worker to fetchColors in parallel.
-				//That way we try to prevent the screen from freezing.
-				solutionWorker = new Worker("js/worker.js");
-				solutionWorker.addEventListener("message", displayMosaic, false);
-			}else{
-				//Otherwise we dynamically injects the script containins the fetchColors code to be used later on.
-				let script = document.createElement("script");
-				script.type="text/javascript";
-				script.src="js/dataService.js";
-				document.body.appendChild(script);
-			}
-
-			//note: 3 functionalities:
-			//1-Display the image preview when picked.
-			_imageInputElement.addEventListener("change", displayImage, false);
-			//2-Turn the image into a mosaic and render it from top to bottom when clicked.
-			_turnToMosaicButtonElement.addEventListener("click", turnToMosaic, false);
-			//3-When we have both the preview and mosaic, we offer the user the ability to flip between both to see the differences.
-			_flipImageElement.addEventListener("click", flipImage, false);
-
-			clear();
-		}
-
-		////////////////////
-
-		function clear(){
-			_flipImageElement.setAttribute("style", "display:none;");
-			_imageMosaicElement.innerHTML = "";
-			_imageMosaicElementContainer.setAttribute("style", "display:none;");
-			_imagePreviewElementContainer.setAttribute("style", "display:none;");
-			_imagesContainerElement.setAttribute("style", "display:none;");
-			_loadingSpinnerElementContainer.setAttribute("style", "display:none;");
-			_turnToMosaicButtonElement.disabled = true;
-		}
-
-		function displayImage(evt) {
-			clear();
-
-			let file = evt.target.files[0];
-			let fsize = file.size;
-			if(fsize > maxFileSize){
-				alert("The image size is too big!");
-				return null;
-			}
-
-			return displayImagePreview(file).then(function(srcValue){
-				return getImageInformation(srcValue);
-			}).then(function(imageData){
-				_image = imageData.shift();
-				let idealImageSize = getIdealImageSize(imageData);
-				_imageWidth = idealImageSize[0];
-				_imageHeight = idealImageSize[1];
-				_imagePreviewElement.width = _image.width = _imageWidth;
-				_imagePreviewElement.height = _image.height = _imageHeight;
-
-				_imagesContainerElement.style.removeProperty("display");
-				_imagePreviewElementContainer.style.removeProperty("display");
-				_turnToMosaicButtonElement.disabled = false;
-				_turnToMosaicButtonElement.style.removeProperty("display");
-			}).catch(function(error){
-				console.log(error);
-				clear();
-			});
-		}
-
-		function displayImagePreview(file){
-			let promise = new Promise(function(resolve, reject){
-				if(!file) return reject("No File");
-
-				let reader = new FileReader();
-				reader.onload = function (e) {
-					let srcValue = e.target.result;
-					_imagePreviewElement.src = srcValue;
-					return resolve(srcValue);
+		const _fetchColor = async (hex) => {
+			let promise = new Promise((resolve, reject) => {
+				let xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = () => {
+					if (xhttp.readyState == 4 && xhttp.status == 200) {
+						resolve(xhttp.responseText);
+					}
 				};
-				reader.readAsDataURL(file);
+				xhttp.open("GET", "/color/" + hex, true);
+				xhttp.send();
 			});
 			return promise;
 		}
 
-		function displayMosaic(result){
-			_loadingSpinnerElementContainer.setAttribute("style", "display:none;");
-			_imageMosaicElementContainer.style.removeProperty("display");
+	// Memoize an expensive function by storing its results.
+	const _memoize = (func) => {
+		const cache = {};
 
-			let finalArray = result.data || result;
-			//One of the projects constraints is to render the mosaic one row at a time, from top to bottom
-			for(let rowNumber = 0; rowNumber < numRows; rowNumber++){
-				let rowArray = finalArray.slice(rowNumber*numCols, rowNumber*numCols+numCols);
-
-				let line = document.createElement("div");
-				line.innerHTML = rowArray.join("");
-				line.setAttribute("style","height:" + TILE_HEIGHT + "px; min-width:" + _imageWidth + "px;");
-
-				_imageMosaicElement.appendChild(line);
+		return async function(){
+			let arg_str = JSON.stringify(arguments);
+			if(!cache[arg_str]){
+				cache[arg_str] = await func.apply(func, arguments);
 			}
-
-			_turnToMosaicButtonElement.setAttribute("style", "display:none;");
-			_flipImageElement.style.removeProperty("display");
+			return cache[arg_str];
 		}
+	}
 
-		function flipImage(){
-			if(!_imageMosaicElementContainer.style.display){
-				_imageMosaicElementContainer.setAttribute("style", "display:none;");
-				_imagePreviewElementContainer.style.removeProperty("display");
-			} else {
-				_imagePreviewElementContainer.setAttribute("style", "display:none;");
-				_imageMosaicElementContainer.style.removeProperty("display");
-			}
-		}
+	const memoizedFetchColor = _memoize(_fetchColor);
 
-		function turnToMosaic(){
-			_turnToMosaicButtonElement.disabled = true;
-			_turnToMosaicButtonElement.setAttribute("style", "display:none;");
+	module.exports = {
+		fetchColors: fetchColors
+	};
+})();
 
-			_imagePreviewElementContainer.setAttribute("style", "display:none;");
+},{}],3:[function(require,module,exports){
+"use strict";
 
-			_loadingSpinnerElementContainer.style.removeProperty("display");
+((window) => {
+  const clear = require("./clear.js");
+  const imageLib = require("./image-lib.js");
 
-			_imageMosaicElement.innerHTML = "";
+  const imageMosaicContainer = document.getElementById("image-mosaic-container");
+  const imagePreviewEl = document.getElementById("image-preview");
+  const imagePreviewContainer = document.getElementById("image-preview-container");
+  const imagesContainer = document.getElementById("images-container");
+  const turnToMosaicButtonEl = document.getElementById("turn-mosaic-button");
 
-			numCols = Math.round(_imageWidth / TILE_WIDTH);
-			numRows = Math.round(_imageHeight / TILE_HEIGHT);
+  const maxFileSize = 256000; //Arbitrary setting to 250kB
+  const maxWidth = Math.round(window.screen.availWidth * (1 - 0.08));
 
-			let imagePiecesByRow = getImagePieces(_image, numCols, numRows);
-			let imagePiecesAverageColor = getImagePiecesAvgColor(imagePiecesByRow, numCols);
+  console.log(window.screen.availWidth);
+  console.log(maxWidth);
 
-			//If the browser supports web workers, we use our. Otherwise just the default execution.
-			if(window.Worker){
-				return solutionWorker.postMessage(imagePiecesAverageColor);
-			} else {
-				return fetchColors(imagePiecesAverageColor)
-				.then(function(result){
-					displayMosaic(result);
-				}).catch(function(error){
-					console.log(error);
-					clear();
-				});
-			}
-		}
-	} else {
-		let _containerElement = document.getElementById("container");
-		_containerElement.setAttribute("style", "display:none;");
+  const displayImage = async (evt) => {
+    try {
+      clear();
 
-		let h1Html = document.createElement("h1");
-		h1Html.innerHTML = "Please upgrade your browser! We need some features...";
-		h1Html.classList.add("dynamic-font", "text-center", "white-color");
-		document.body.appendChild(h1Html);
+      const file = evt.target.files[0];
+      const fsize = file.size;
+      if(fsize > maxFileSize){
+        alert("The image size is too big!");
+        return null;
+      }
+
+      const srcValue = await _getSrc(file);
+      const imageData = await imageLib.getImageInformation(srcValue);
+      const [image, width, height] = imageData;
+      const [imageIdealWidth, imageIdealHeight] = imageLib.getIdealImageSize(width, height);
+
+      // We don't want the image to be wider than the window width
+      console.log(imageIdealWidth);
+      if(imageIdealWidth > maxWidth){
+        const msg = `The image is too wide for your screen`;
+        alert(msg);
+        throw new Error(msg);
+      }
+
+      imagePreviewEl.src = srcValue;
+      imagePreviewEl.style["width"] = `${imageIdealWidth}px`;
+      imagePreviewEl.style["height"] = `${imageIdealHeight}px`;
+
+      _setContainerHeight(imageIdealHeight);
+
+      imagesContainer.style.removeProperty("display");
+      imagePreviewContainer.style.removeProperty("display");
+
+      turnToMosaicButtonEl.disabled = false;
+      turnToMosaicButtonEl.style.removeProperty("display");
+    } catch (e) {
+      console.error(e);
+      clear();
+    }
+  };
+
+  const _getSrc = async (file) => {
+    const promise = new Promise((resolve, reject) => {
+      if(!file) return reject("No File");
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const srcValue = e.target.result;
+        return resolve(srcValue);
+      };
+      reader.readAsDataURL(file);
+    });
+    return promise;
+  };
+
+  const _setContainerHeight = (imageIdealHeight) => {
+    const containerHeight = imageIdealHeight + 100;
+    imageMosaicContainer.style["height"] = `${containerHeight}px`;
+    imagePreviewContainer.style["height"] = `${containerHeight}px`;
+  };
+
+  module.exports = displayImage;
+})(window);
+
+},{"./clear.js":1,"./image-lib.js":6}],4:[function(require,module,exports){
+"use strict";
+
+(() => {
+  const flipImageEl = document.getElementById("flip-image");
+  const imageMosaicEl = document.getElementById("image-mosaic");
+  const imageMosaicContainer = document.getElementById("image-mosaic-container");
+  const loadingSpinnerContainer = document.getElementById("loading-spinner-container");
+  const turnToMosaicButtonEl = document.getElementById("turn-mosaic-button");
+
+  const displayMosaic = (tiles, numRows, numCols, imageWidth) => {
+    loadingSpinnerContainer.style["display"] = "none";
+    imageMosaicContainer.style.removeProperty("display");
+
+    //One of the projects constraints is to render the mosaic one row at a time, from top to bottom
+    for(let rowNumber = 0; rowNumber < numRows; rowNumber++){
+      const rowArray = tiles.slice(rowNumber*numCols, rowNumber*numCols+numCols);
+
+      const line = document.createElement("div");
+      line.innerHTML = rowArray.join("");
+      line.setAttribute("style","height:" + TILE_HEIGHT + "px; min-width:" + imageWidth + "px;");
+
+      imageMosaicEl.appendChild(line);
+    }
+
+    turnToMosaicButtonEl.style["display"] = "none";
+    flipImageEl.style.removeProperty("display");
+  };
+
+  module.exports = displayMosaic;
+})();
+
+},{}],5:[function(require,module,exports){
+"use strict";
+
+(() => {
+  const imageMosaicContainer = document.getElementById("image-mosaic-container");
+  const imagePreviewContainer = document.getElementById("image-preview-container");
+
+  const flipImage = () => {
+    if(!imageMosaicContainer.style.display){
+      imageMosaicContainer.style["display"] = "none";
+      imagePreviewContainer.style.removeProperty("display");
+    } else {
+      imagePreviewContainer.style["display"] = "none";
+      imageMosaicContainer.style.removeProperty("display");
+    }
+  };
+
+  module.exports = flipImage;
+})();
+
+},{}],6:[function(require,module,exports){
+"use strict";
+
+((window) => {
+  const getIdealImageSize = (width, height) => {
+    let imageIdealWidth = TILE_WIDTH * Math.round(width / TILE_WIDTH);
+    let imageIdealHeight = TILE_HEIGHT * Math.round(height / TILE_HEIGHT);
+    return [imageIdealWidth, imageIdealHeight];
+  };
+
+  const getImageInformation = async (srcValue) => {
+    const promise = new Promise(function(resolve, reject){
+      if(!srcValue) return reject("No Source Value");
+
+      let image = new Image();
+      image.onload = function() {
+        return resolve([image, this.width, this.height]);
+      };
+      image.src = srcValue;
+    });
+    return promise;
+  };
+
+  const getImagePieces = (image, numCols, numRows) => {
+    const imagePiecesByRow = [];
+    for(let y = 0; y < numRows; y++) {
+      for(let x = 0; x < numCols; x++) {
+        let canvas = document.createElement('canvas');
+        canvas.width = TILE_WIDTH;
+        canvas.height = TILE_HEIGHT;
+        let context = canvas.getContext('2d');
+        context.width = canvas.width;
+        context.height = canvas.width;
+        context.drawImage(image, x * TILE_WIDTH, y * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, 0, 0, canvas.width, canvas.height);
+        imagePiecesByRow.push(context);
+      }
+    }
+    return imagePiecesByRow;
+  };
+
+  const getImagePiecesAvgColor = (imagePieces) => {
+    return imagePieces.map((piece) => {
+      const colors = _getColors(piece);
+      return _rgbToHex(colors.r, colors.g, colors.b);
+    });
+  };
+
+  const _getColors = (c) => {
+    let pixels, r, g, b, a, count;
+    r = g = b = a = count = 0;
+    pixels = c.getImageData(0, 0, c.width, c.height);
+
+    for(let i = 0, data = pixels.data; i < data.length; i += 4) {
+      a = data[i + 3]; // alpha
+      // skip pixels >50% transparent
+      if (a < (255 / 2)) continue;
+
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count++;
+    }
+
+    return {
+      r: Math.round(r/count),
+      g: Math.round(g/count),
+      b: Math.round(b/count)
+    };
+  };
+
+  const _rgbToHex = (r, g, b) => {
+    return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  module.exports = {
+    getIdealImageSize: getIdealImageSize,
+    getImageInformation: getImageInformation,
+    getImagePieces: getImagePieces,
+    getImagePiecesAvgColor: getImagePiecesAvgColor
+  }
+})(window);
+
+},{}],7:[function(require,module,exports){
+"use strict";
+
+//IIFE to avoid polluting the global space
+((window, document) => {
+  //Checking whether browser fully supports all File API
+	if (window.File && window.FileReader && window.FileList) {
+    const clear = require("./clear.js");
+    const displayImage = require("./display-image.js");
+		const turnToMosaic = require("./turn-to-mosaic.js");
+		const flipImage = require("./flip-image.js");
+
+    clear();
+
+    //note: 3 functionalities:
+    //1-Display the image preview when picked.
+    const imageInputEl = document.getElementById("image-input");
+    imageInputEl.addEventListener("change", displayImage, false);
+
+    //2-Turn the image into a mosaic and render it from top to bottom when clicked.
+		const turnToMosaicButtonEl = document.getElementById("turn-mosaic-button");
+    turnToMosaicButtonEl.addEventListener("click", turnToMosaic, false);
+
+    //3-When we have both the preview and mosaic, we offer the user the ability to flip between both to see the differences.
+		const flipImageEl = document.getElementById("flip-image");
+		flipImageEl.addEventListener("click", flipImage, false);
+  } else {
+    let containerEl = document.getElementById("container");
+    containerEl.style["display"] = "none";
+
+		let titleEl = document.createElement("h1");
+		titleEl.innerHTML = "Please upgrade your browser! Some features are needed...";
+		titleEl.classList.add("dynamic-font", "text-center", "white-color");
+		document.body.appendChild(titleEl);
 	}
 })(window, document);
+
+},{"./clear.js":1,"./display-image.js":3,"./flip-image.js":5,"./turn-to-mosaic.js":8}],8:[function(require,module,exports){
+"use strict";
+
+((window) => {
+  const clear = require("./clear.js");
+  const imageLib = require("./image-lib.js");
+  const dataService = require("./data-service.js");
+	const displayMosaic = require("./display-mosaic.js");
+
+  const flipImageEl = document.getElementById("flip-image");
+  const imageMosaicEl = document.getElementById("image-mosaic");
+  const imageMosaicContainer = document.getElementById("image-mosaic-container");
+  const imagePreviewEl = document.getElementById("image-preview");
+  const imagePreviewContainer = document.getElementById("image-preview-container");
+  const loadingSpinnerContainer = document.getElementById("loading-spinner-container");
+  const turnToMosaicButtonEl = document.getElementById("turn-mosaic-button");
+
+  const turnToMosaic = async () => {
+    try {
+      turnToMosaicButtonEl.disabled = true;
+      turnToMosaicButtonEl.style["display"] = "none";
+
+      const imageWidth = parseInt(imagePreviewEl.style["width"]);
+      const imageHeight = parseInt(imagePreviewEl.style["height"]);
+      imagePreviewContainer.style["display"] = "none";
+
+      loadingSpinnerContainer.style.removeProperty("display");
+      imageMosaicEl.innerHTML = "";
+
+      const numCols = Math.round(imageWidth / TILE_WIDTH);
+      const numRows = Math.round(imageHeight / TILE_HEIGHT);
+      const imagePiecesByRow = imageLib.getImagePieces(imagePreviewEl, numCols, numRows);
+      const imagePiecesAverageColor = imageLib.getImagePiecesAvgColor(imagePiecesByRow);
+      const tiles = await dataService.fetchColors(imagePiecesAverageColor);
+      displayMosaic(tiles, numRows, numCols, imageWidth);
+    } catch (e) {
+      console.error(e);
+      clear();
+    }
+  };
+
+  module.exports = turnToMosaic;
+})(window);
+
+},{"./clear.js":1,"./data-service.js":2,"./display-mosaic.js":4,"./image-lib.js":6}]},{},[7]);

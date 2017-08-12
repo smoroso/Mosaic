@@ -2,6 +2,9 @@
   "name": "Mosaic",
   "version": "0.0.1",
   "scripts": {
-    "start": "node server.js"
+    "start": "browserify js/mosaic/index.js -o js/client.js && node server.js"
+  },
+  "devDependencies": {
+    "browserify": "^14.4.0"
   }
 }
