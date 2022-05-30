@@ -5,6 +5,6 @@
     "start": "browserify js/mosaic/index.js -o js/client.js && node server.js"
   },
   "devDependencies": {
-    "browserify": "^14.4.0"
+    "browserify": "^17.0.0"
   }
 }
